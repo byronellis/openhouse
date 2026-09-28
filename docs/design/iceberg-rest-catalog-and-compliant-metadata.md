@@ -190,6 +190,24 @@ Spark job through the existing jobs framework; choose the threshold based on met
 job must be resumable, report progress/failure, and publish the compliant head only after the
 entire graph has passed validation.
 
+## Maintenance, retention, and purge
+
+Maintenance operates on one logical table state, not independently on two representations:
+
+| Operation | Required behavior while both graphs are retained |
+|---|---|
+| Compaction or rewrite | Read one logical snapshot, write replacement data once, and publish the resulting logical snapshot into both metadata graphs. Do not run a separate compaction per graph. |
+| Snapshot expiration or history retention | Apply the same snapshot/ref retention decision to both heads. Rewrite both metadata graphs before publishing either new head. |
+| Orphan metadata cleanup | Treat both heads, their retained snapshots and refs, retained metadata-log entries, and in-flight operations as roots. Delete only metadata unreachable from all roots and outside the safety window. |
+| Soft delete and restore | Preserve and restore the catalog pointers and state for both graphs together. |
+| Purge/drop | Delete the table's complete storage prefix, including both metadata namespaces and data, only after catalog state and active jobs are handled safely. |
+
+These rules apply to the existing maintenance surfaces, including compaction, snapshot
+expiration, retention, orphan-file deletion, and table purge. A partial failure must not leave
+the catalog advertising heads with different logical snapshots. Physical files shared by both
+graphs (especially data files) must not be deleted until unreachable from either graph and no
+active job can still publish a reference to them.
+
 ## Rollout and legacy retirement
 
 1. Land path qualification and compliant metadata serialization behind a feature gate; validate
@@ -220,6 +238,8 @@ because one metadata graph has been retired.
   incomplete graph or overwrite a visible immutable file.
 - Migration preserves data-file identity, snapshot IDs, refs, and readable history.
 - Rename changes catalog identity without rewriting table metadata or either head.
+- Compaction, expiration, purge, restore, and orphan cleanup keep both heads logically
+  synchronized and preserve every file reachable from either head or an active job.
 - Expiration and orphan cleanup retain the union of required files until legacy retirement is
   complete.
 - Tests cover Local, HDFS, and S3 URI qualification, as well as retries, CAS conflicts, partial
