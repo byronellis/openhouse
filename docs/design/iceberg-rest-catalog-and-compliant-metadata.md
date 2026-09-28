@@ -78,10 +78,9 @@ Existing legacy paths remain unchanged.
   00001-<uuid>.metadata.json                 # existing legacy table metadata
   metadata/
     snap-<legacy-name>.avro                  # existing legacy manifest lists/manifests
-    v<version>-<uuid>.metadata.json          # compliant table metadata
-    openhouse-compliant/
-      manifest-lists/<commit-id>-<uuid>.avro
-      manifests/<source-id>-<uuid>.avro
+    <version>-rest-<uuid>.metadata.json       # compliant table metadata
+    rest-snap-<snapshot-id>-<uuid>.avro       # compliant manifest lists
+    rest-manifest-<uuid>.avro                # compliant manifests
 ```
 
 The table's Iceberg `location` remains the physical table base location. Every URI stored in the
@@ -91,10 +90,11 @@ qualified `file:` URI. The resolver that produces these paths should be centrali
 reconstructed independently in table operations, REST handlers, and migration code.
 
 The `metadata/` directory already exists for legacy Avro files, so its existence is not a mode
-marker. The catalog/API chooses the graph by its stored pointer. The distinct compliant
-subdirectories and filename namespace ensure new writes cannot overwrite legacy artifacts.
-Directory placement is a convention for organization and isolation, not the signal that makes
-metadata compliant.
+marker. Keep both graphs there, using a reserved filename prefix for compliant files; the
+catalog/API chooses the graph by its stored pointer. Preserve any Iceberg-required numeric
+metadata-version prefix and verify the resulting metadata filenames with the supported Iceberg
+runtime. The reserved prefix prevents compliant writes from overwriting legacy artifacts, but is
+not itself a signal of compliance.
 
 ## Catalog state and API behavior
 
