@@ -94,7 +94,10 @@ marker. Keep both graphs there, using a reserved filename prefix for compliant f
 catalog/API chooses the graph by its stored pointer. Preserve any Iceberg-required numeric
 metadata-version prefix and verify the resulting metadata filenames with the supported Iceberg
 runtime. The reserved prefix prevents compliant writes from overwriting legacy artifacts, but is
-not itself a signal of compliance.
+not itself a signal of compliance. Readers must not discover a graph by listing `metadata/` or by
+interpreting filenames: they start from the catalog-selected table metadata, follow its snapshots
+to manifest lists, and follow each list's manifest paths. The prefix is for write isolation, not
+discovery; cleanup must use reachability and retention state rather than filename matching alone.
 
 ## Catalog state and API behavior
 
