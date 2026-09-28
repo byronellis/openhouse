@@ -1,7 +1,7 @@
 # Iceberg REST Catalog and compliant metadata
 
-**Status:** Design proposal  
-**Target:** Iceberg format v2, with fully qualified file URIs  
+**Status:** Design proposal
+**Target:** Iceberg format v2, with fully qualified file URIs
 **Scope:** A standards-compatible Iceberg metadata representation and an Iceberg REST
 Catalog API alongside OpenHouse's existing catalog API
 
