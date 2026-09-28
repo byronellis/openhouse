@@ -166,6 +166,10 @@ tasks.register('CopyGitHooksTask', Copy) {
   println 'Make the git hook available in .git/hooks directory.'
   from file('scripts/git-hooks')
   into file('.git/hooks/')
+  onlyIf {
+    // Docker build/start tasks do not need local Git hooks.
+    !gradle.taskGraph.allTasks.any { it.group == 'docker' }
+  }
 }
 
 // =============================================================================

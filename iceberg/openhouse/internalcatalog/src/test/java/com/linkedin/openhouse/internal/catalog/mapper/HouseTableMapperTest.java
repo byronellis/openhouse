@@ -12,7 +12,12 @@ import com.linkedin.openhouse.internal.catalog.model.HouseTable;
 import com.linkedin.openhouse.internal.catalog.repository.HouseTableRepository;
 import com.linkedin.openhouse.internal.catalog.repository.HouseTableRepositoryImpl;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,5 +74,33 @@ public class HouseTableMapperTest {
     Assertions.assertEquals("database", houseTable.getDatabaseId());
     Assertions.assertEquals("table", houseTable.getTableId());
     Assertions.assertEquals("local", houseTable.getStorageType());
+  }
+
+  @Test
+  public void tableIdentityComesFromCatalogIdentifier() {
+    HadoopFileIO fileIO = new HadoopFileIO(new Configuration());
+    LocalStorage localStorage = mock(LocalStorage.class);
+    when(fileIOManager.getStorage(fileIO)).thenReturn(localStorage);
+    when(localStorage.getType()).thenReturn(StorageType.LOCAL);
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            new Schema(Types.NestedField.required(1, "data", Types.StringType.get())),
+            PartitionSpec.unpartitioned(),
+            "file:/tmp/table",
+            ImmutableMap.of(
+                "openhouse.databaseId", "stale_database",
+                "openhouse.tableId", "stale_table",
+                "openhouse.clusterId", "test_cluster",
+                "openhouse.tableUri", "test_cluster.stale_database.stale_table"));
+
+    HouseTable houseTable =
+        houseTableMapper.toHouseTable(
+            metadata, fileIO, TableIdentifier.of("catalog_database", "catalog_table"));
+
+    Assertions.assertEquals("catalog_database", houseTable.getDatabaseId());
+    Assertions.assertEquals("catalog_table", houseTable.getTableId());
+    Assertions.assertEquals(
+        "test_cluster.catalog_database.catalog_table", houseTable.getTableUri());
   }
 }

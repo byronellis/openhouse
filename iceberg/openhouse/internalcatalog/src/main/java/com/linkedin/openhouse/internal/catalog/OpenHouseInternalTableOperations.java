@@ -425,23 +425,8 @@ public class OpenHouseInternalTableOperations extends BaseMetastoreTableOperatio
         writeSpan.end();
       }
 
-      houseTable = houseTableMapper.toHouseTable(updatedMtDataRef, fileIO);
-      if (base != null
-          && (properties.containsKey(CatalogConstants.OPENHOUSE_TABLEID_KEY)
-                  && !properties
-                      .get(CatalogConstants.OPENHOUSE_TABLEID_KEY)
-                      .equalsIgnoreCase(this.tableIdentifier.name())
-              || properties.containsKey(CatalogConstants.OPENHOUSE_DATABASEID_KEY)
-                  && !properties
-                      .get(CatalogConstants.OPENHOUSE_DATABASEID_KEY)
-                      .equalsIgnoreCase(this.tableIdentifier.namespace().toString()))) {
-        houseTableRepository.rename(
-            this.tableIdentifier.namespace().toString(),
-            this.tableIdentifier.name(),
-            properties.get(CatalogConstants.OPENHOUSE_DATABASEID_KEY),
-            properties.get(CatalogConstants.OPENHOUSE_TABLEID_KEY),
-            newMetadataLocation);
-      } else if (!isStageCreate && !isStageReplace) {
+      houseTable = houseTableMapper.toHouseTable(updatedMtDataRef, fileIO, tableIdentifier);
+      if (!isStageCreate && !isStageReplace) {
         Span htsSpan = tracer.spanBuilder("IcebergTableOps.saveHouseTable").startSpan();
         try (Scope ignored = htsSpan.makeCurrent()) {
           houseTableRepository.save(houseTable);

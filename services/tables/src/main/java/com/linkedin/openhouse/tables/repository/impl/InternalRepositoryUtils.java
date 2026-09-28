@@ -4,6 +4,7 @@ import static com.linkedin.openhouse.internal.catalog.mapper.HouseTableSerdeUtil
 
 import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.openhouse.cluster.storage.Storage;
+import com.linkedin.openhouse.common.api.spec.TableUri;
 import com.linkedin.openhouse.common.schema.IcebergSchemaHelper;
 import com.linkedin.openhouse.internal.catalog.fileio.FileIOManager;
 import com.linkedin.openhouse.tables.dto.mapper.iceberg.PartitionSpecMapper;
@@ -22,6 +23,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdateProperties;
+import org.apache.iceberg.catalog.TableIdentifier;
 
 /** Utilities used in repository implementation. */
 public final class InternalRepositoryUtils {
@@ -100,6 +102,7 @@ public final class InternalRepositoryUtils {
   @VisibleForTesting
   static TableDto convertToTableDto(
       Table table,
+      TableIdentifier tableIdentifier,
       FileIOManager fileIOManager,
       PartitionSpecMapper partitionSpecMapper,
       PoliciesSpecMapper policiesMapper,
@@ -109,10 +112,16 @@ public final class InternalRepositoryUtils {
     Storage storage = fileIOManager.getStorage(table.io());
     TableDto tableDto =
         TableDto.builder()
-            .tableId(megaProps.get(getCanonicalFieldName("tableId")))
-            .databaseId(megaProps.get(getCanonicalFieldName("databaseId")))
+            .tableId(tableIdentifier.name())
+            .databaseId(tableIdentifier.namespace().toString())
             .clusterId(megaProps.get(getCanonicalFieldName("clusterId")))
-            .tableUri(megaProps.get(getCanonicalFieldName("tableUri")))
+            .tableUri(
+                TableUri.builder()
+                    .clusterId(megaProps.get(getCanonicalFieldName("clusterId")))
+                    .databaseId(tableIdentifier.namespace().toString())
+                    .tableId(tableIdentifier.name())
+                    .build()
+                    .toString())
             .tableUUID(megaProps.get(getCanonicalFieldName("tableUUID")))
             .tableLocation(
                 URI.create(

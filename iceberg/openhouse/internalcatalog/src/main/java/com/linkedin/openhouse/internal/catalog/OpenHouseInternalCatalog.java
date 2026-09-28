@@ -6,7 +6,6 @@ import com.linkedin.openhouse.cluster.metrics.micrometer.MetricsReporter;
 import com.linkedin.openhouse.cluster.storage.StorageManager;
 import com.linkedin.openhouse.cluster.storage.StorageType;
 import com.linkedin.openhouse.cluster.storage.selector.StorageSelector;
-import com.linkedin.openhouse.common.api.spec.TableUri;
 import com.linkedin.openhouse.common.exception.AlreadyExistsException;
 import com.linkedin.openhouse.common.exception.NoSuchSoftDeletedUserTableException;
 import com.linkedin.openhouse.common.utils.NamespaceUtil;
@@ -28,10 +27,7 @@ import java.util.stream.StreamSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseMetastoreCatalog;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.Transaction;
-import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -128,6 +124,12 @@ public class OpenHouseInternalCatalog extends BaseMetastoreCatalog {
         .map(houseTable -> TableIdentifier.of(houseTable.getDatabaseId(), houseTable.getTableId()));
   }
 
+  public List<TableIdentifier> listAllTableIdentifiers() {
+    return StreamSupport.stream(houseTableRepository.findAll().spliterator(), false)
+        .map(houseTable -> TableIdentifier.of(houseTable.getDatabaseId(), houseTable.getTableId()))
+        .collect(Collectors.toList());
+  }
+
   /**
    * Paginated listing that preserves the underlying {@link HouseTable} rows, so callers can read
    * HTS-resident columns (e.g. tableLocation) without an extra metadata.json load per table.
@@ -213,8 +215,9 @@ public class OpenHouseInternalCatalog extends BaseMetastoreCatalog {
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    Table fromTable = loadTable(from);
-    String tableClusterId = fromTable.properties().get(CatalogConstants.OPENHOUSE_CLUSTERID_KEY);
+    HouseTable fromHouseTable =
+        findHouseTable(from)
+            .orElseThrow(() -> new NoSuchTableException("Table does not exist: %s", from));
 
     // Preserve existing case if databases are the same
     String toDatabaseName =
@@ -222,28 +225,12 @@ public class OpenHouseInternalCatalog extends BaseMetastoreCatalog {
             ? from.namespace().toString()
             : to.namespace().toString();
 
-    TableUri tableUri =
-        TableUri.builder()
-            .clusterId(tableClusterId)
-            .databaseId(toDatabaseName)
-            .tableId(to.name())
-            .build();
-
-    Transaction transaction = fromTable.newTransaction();
-    UpdateProperties updateProperties = transaction.updateProperties();
-    log.info(
-        "Setting preserved table properties {} to {}, {} to {}, and {} to {} for table rename",
-        CatalogConstants.OPENHOUSE_TABLEID_KEY,
-        to.name(),
-        CatalogConstants.OPENHOUSE_DATABASEID_KEY,
+    houseTableRepository.rename(
+        from.namespace().toString(),
+        from.name(),
         toDatabaseName,
-        CatalogConstants.OPENHOUSE_TABLEURI_KEY,
-        tableUri.toString());
-    updateProperties.set(CatalogConstants.OPENHOUSE_TABLEID_KEY, to.name());
-    updateProperties.set(CatalogConstants.OPENHOUSE_DATABASEID_KEY, toDatabaseName);
-    updateProperties.set(CatalogConstants.OPENHOUSE_TABLEURI_KEY, tableUri.toString());
-    updateProperties.commit();
-    transaction.commitTransaction();
+        to.name(),
+        fromHouseTable.getTableLocation());
   }
 
   public Page<SoftDeletedTableDto> searchSoftDeletedTables(

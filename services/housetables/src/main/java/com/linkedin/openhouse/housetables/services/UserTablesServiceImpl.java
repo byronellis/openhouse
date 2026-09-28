@@ -134,8 +134,8 @@ public class UserTablesServiceImpl implements UserTablesService {
    * @param toDatabaseId Until rename support across databases is supported, this should be the same
    *     as fromDatabaseId
    * @param toTableId The new tableId of the renamed row.
-   * @param metadataLocation The new metadata file of the table with updated table properties that
-   *     match the new tableId
+   * @param metadataLocation The existing metadata file location; renaming updates the catalog row
+   *     without rewriting table metadata.
    */
   @Override
   public void renameUserTable(

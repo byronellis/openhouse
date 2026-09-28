@@ -117,7 +117,11 @@ public class OpenHouseInternalTableOperationsTest {
   void setup() {
     MockitoAnnotations.openMocks(this);
     tableMetadataCache = new InMemoryTableMetadataCache();
-    Mockito.when(mockHouseTableMapper.toHouseTable(Mockito.any(TableMetadata.class), Mockito.any()))
+    Mockito.when(
+            mockHouseTableMapper.toHouseTable(
+                Mockito.any(TableMetadata.class),
+                Mockito.any(),
+                Mockito.any(TableIdentifier.class)))
         .thenReturn(mockHouseTable);
     HadoopFileIO fileIO = new HadoopFileIO(new Configuration());
     MetricsReporter metricsReporter =
@@ -181,7 +185,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = BASE_TABLE_METADATA.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(BASE_TABLE_METADATA, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
 
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
       Assertions.assertEquals(
@@ -312,7 +318,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = base.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(base, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
 
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
       Assertions.assertEquals(
@@ -462,7 +470,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = base.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(base, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
 
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
       Assertions.assertTrue(
@@ -523,7 +533,9 @@ public class OpenHouseInternalTableOperationsTest {
                   eq(mockFileSystem), anyString(), eq("last-updated-ms"), eq(1233232423L)));
     }
 
-    Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+    Mockito.verify(mockHouseTableMapper)
+        .toHouseTable(
+            tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
 
     Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
     Assertions.assertEquals(
@@ -638,7 +650,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = base.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(base, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
 
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
       Assertions.assertEquals(
@@ -855,7 +869,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = BASE_TABLE_METADATA.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(BASE_TABLE_METADATA, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
 
       Assertions.assertTrue(updatedProperties.containsKey(getCanonicalFieldName("tableLocation")));
@@ -893,7 +909,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = base.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(base, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
 
       Assertions.assertTrue(updatedProperties.containsKey(getCanonicalFieldName("tableLocation")));
@@ -932,7 +950,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = base.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(base, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
 
       Assertions.assertTrue(updatedProperties.containsKey(getCanonicalFieldName("tableLocation")));
@@ -968,7 +988,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = base.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(base, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
 
       Assertions.assertTrue(updatedProperties.containsKey(getCanonicalFieldName("tableLocation")));
@@ -1000,7 +1022,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = base.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(base, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
 
       Assertions.assertTrue(updatedProperties.containsKey(getCanonicalFieldName("tableLocation")));
@@ -1026,7 +1050,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       TableMetadata metadata = base.replaceProperties(properties);
       openHouseInternalTableOperations.doCommit(base, metadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
       Map<String, String> updatedProperties = tblMetadataCaptor.getValue().properties();
 
       Assertions.assertTrue(updatedProperties.containsKey(getCanonicalFieldName("tableLocation")));
@@ -1332,7 +1358,8 @@ public class OpenHouseInternalTableOperationsTest {
             .databaseId(TEST_TABLE_IDENTIFIER.namespace().toString())
             .tableId(TEST_TABLE_IDENTIFIER.name())
             .build();
-    when(mockHouseTableMapper.toHouseTable(Mockito.any(TableMetadata.class), Mockito.any()))
+    when(mockHouseTableMapper.toHouseTable(
+            Mockito.any(TableMetadata.class), Mockito.any(), Mockito.any(TableIdentifier.class)))
         .thenAnswer(
             invocation -> {
               TableMetadata tableMetadata = invocation.getArgument(0);
@@ -1507,7 +1534,8 @@ public class OpenHouseInternalTableOperationsTest {
 
   /** Sets up mocks specific to commit metadata tests. */
   private void setupCommitMetadataTest(OpenHouseInternalTableOperations operations) {
-    when(mockHouseTableMapper.toHouseTable(Mockito.any(TableMetadata.class), Mockito.any()))
+    when(mockHouseTableMapper.toHouseTable(
+            Mockito.any(TableMetadata.class), Mockito.any(), Mockito.any(TableIdentifier.class)))
         .thenReturn(mockHouseTable);
     when(mockHouseTableRepository.save(Mockito.any())).thenReturn(mockHouseTable);
   }
@@ -1657,7 +1685,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       // ========== COMMIT: Base at N, Metadata at N+3 (divergent by 3 commits) ==========
       openHouseInternalTableOperations.doCommit(baseAtN, finalDivergentMetadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
 
       TableMetadata capturedMetadata = tblMetadataCaptor.getValue();
 
@@ -1746,7 +1776,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       // ========== COMMIT: Should succeed with multiple valid branches ==========
       openHouseInternalTableOperations.doCommit(baseAtN, finalDivergentMetadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
 
       TableMetadata capturedMetadata = tblMetadataCaptor.getValue();
 
@@ -1857,7 +1889,9 @@ public class OpenHouseInternalTableOperationsTest {
 
     // commit should succeed
     openHouseInternalTableOperations.doCommit(finalBaseMetadata, finalNewMetadata);
-    Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+    Mockito.verify(mockHouseTableMapper)
+        .toHouseTable(
+            tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
 
     TableMetadata capturedMetadata = tblMetadataCaptor.getValue();
 
@@ -2018,7 +2052,9 @@ public class OpenHouseInternalTableOperationsTest {
 
       // ========== COMMIT: Base at N, Metadata at N+3 (divergent by 3 commits) ==========
       openHouseInternalTableOperations.doCommit(baseAtN, finalDivergentMetadata);
-      Mockito.verify(mockHouseTableMapper).toHouseTable(tblMetadataCaptor.capture(), Mockito.any());
+      Mockito.verify(mockHouseTableMapper)
+          .toHouseTable(
+              tblMetadataCaptor.capture(), Mockito.any(), Mockito.any(TableIdentifier.class));
 
       TableMetadata capturedMetadata = tblMetadataCaptor.getValue();
 

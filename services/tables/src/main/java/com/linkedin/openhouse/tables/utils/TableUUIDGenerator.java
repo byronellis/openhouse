@@ -29,8 +29,6 @@ import org.springframework.stereotype.Component;
 public class TableUUIDGenerator {
   // TODO: r/w of tableProperties being managed in single place.
   private static final String OPENHOUSE_NAMESPACE = "openhouse.";
-  private static final String DB_RAW_KEY = "databaseId";
-  private static final String TBL_RAW_KEY = "tableId";
   private static final String TBL_LOC_RAW_KEY = "tableLocation";
   private static final String TBL_UUID_RAW_KEY = "tableUUID";
 
@@ -76,12 +74,7 @@ public class TableUUIDGenerator {
         + icebergSnapshotsRequestBody.getCreateUpdateTableRequestBody().getTableId();
   }
 
-  /**
-   * Extracting the value of given key from the table properties map. The main use cases are for
-   * tableId, databaseId and tableLocation where the value captured in tblproperties preserved the
-   * casing from creation. This casing is critical if r/w for this table occurs in a platform with
-   * different casing-preservation contract.
-   */
+  /** Extracts a required value from the table properties map. */
   private String extractFromTblPropsIfExists(
       String tableURI, Map<String, String> tblProps, String rawKey) {
     if (tblProps == null
@@ -137,8 +130,6 @@ public class TableUUIDGenerator {
       TableType tableType) {
 
     String tableURI = String.format("%s.%s", databaseId, tableId);
-    String dbIdFromProps = extractFromTblPropsIfExists(tableURI, tableProperties, DB_RAW_KEY);
-    String tblIdFromProps = extractFromTblPropsIfExists(tableURI, tableProperties, TBL_RAW_KEY);
     boolean isTableReplicated =
         Boolean.parseBoolean(
             tableProperties.getOrDefault(
@@ -156,10 +147,10 @@ public class TableUUIDGenerator {
           extractFromTblPropsIfExists(tableURI, tableProperties, TBL_LOC_RAW_KEY);
       Storage storage = storageManager.getStorageFromPath(tableLocation);
 
-      if (!storage.isPathValid(tableLocation, dbIdFromProps, tblIdFromProps, tableUUIDProperty)) {
+      if (!storage.isPathValid(tableLocation, databaseId, tableId, tableUUIDProperty)) {
         log.error("Previous tableLocation: {} doesn't exist", tableLocation);
         throw new RequestValidationFailureException(
-            String.format("Provided snapshot is invalid for %s.%s", dbIdFromProps, tblIdFromProps));
+            String.format("Provided snapshot is invalid for %s.%s", databaseId, tableId));
       }
     }
   }
@@ -176,20 +167,11 @@ public class TableUUIDGenerator {
   private Optional<UUID> extractUUIDFromRequestBody(
       IcebergSnapshotsRequestBody snapshotsRequestBody) {
     List<String> jsonSnapshots = snapshotsRequestBody.getJsonSnapshots();
-    String tableURI =
-        snapshotsRequestBody.getCreateUpdateTableRequestBody().getDatabaseId()
-            + "."
-            + snapshotsRequestBody.getCreateUpdateTableRequestBody().getTableId();
-    String databaseId =
-        extractFromTblPropsIfExists(
-            tableURI,
-            snapshotsRequestBody.getCreateUpdateTableRequestBody().getTableProperties(),
-            DB_RAW_KEY);
-    String tableId =
-        extractFromTblPropsIfExists(
-            tableURI,
-            snapshotsRequestBody.getCreateUpdateTableRequestBody().getTableProperties(),
-            TBL_RAW_KEY);
+    CreateUpdateTableRequestBody createUpdateTableRequestBody =
+        snapshotsRequestBody.getCreateUpdateTableRequestBody();
+    String databaseId = createUpdateTableRequestBody.getDatabaseId();
+    String tableId = createUpdateTableRequestBody.getTableId();
+    String tableURI = getTableURI(snapshotsRequestBody);
 
     String snapshotStr =
         Optional.ofNullable(jsonSnapshots)
