@@ -38,7 +38,7 @@ public class SetRetentionPolicyTest {
             "u1",
             mockTableLocationAfterOperation(
                 TableIdentifier.of("dbSetRetention", "t1"),
-                "ALTER TABLE %t SET TBLPROPERTIES('openhouse.tableId'='t1')"),
+                "ALTER TABLE %t SET TBLPROPERTIES('test.property'='test')"),
             "V1",
             baseSchema,
             null,
@@ -90,7 +90,7 @@ public class SetRetentionPolicyTest {
             "u1",
             mockTableLocationAfterOperation(
                 TableIdentifier.of("0_", "0_"),
-                "ALTER TABLE %t SET TBLPROPERTIES('openhouse.tableId'='0_')"),
+                "ALTER TABLE %t SET TBLPROPERTIES('test.property'='test')"),
             "V1",
             baseSchema,
             null,
@@ -144,7 +144,7 @@ public class SetRetentionPolicyTest {
             "u1",
             mockTableLocationAfterOperation(
                 TableIdentifier.of("dbSetRetention", "t2"),
-                "ALTER TABLE %t SET TBLPROPERTIES('openhouse.tableId'='t2')"),
+                "ALTER TABLE %t SET TBLPROPERTIES('test.property'='test')"),
             "V1",
             baseSchema,
             null,
@@ -158,7 +158,7 @@ public class SetRetentionPolicyTest {
             "u2",
             mockTableLocationAfterOperation(
                 TableIdentifier.of("dbSetRetention", "t2"),
-                "ALTER TABLE %t SET TBLPROPERTIES('policies'='{retention:{count:300,granularity:day}}','openhouse.tableId'='t2')"),
+                "ALTER TABLE %t SET TBLPROPERTIES('policies'='{retention:{count:300,granularity:day}}')"),
             "V2",
             baseSchema,
             null,
@@ -174,26 +174,13 @@ public class SetRetentionPolicyTest {
   }
 
   @Test
-  public void testSetRetentionPolicyNonOpenHouseTable() throws Exception {
-    Object existingTable =
-        mockGetTableResponseBody(
-            "dbSetRetention",
-            "t3",
-            "c1",
-            "dbSetRetention.t3",
-            "u1",
-            mockTableLocation(
-                TableIdentifier.of("dbSetRetention", "t3"),
-                convertSchemaToDDLComponent(baseSchema),
-                ""),
-            "V1",
-            baseSchema,
-            null,
-            null);
-    mockTableService.enqueue(mockResponse(200, existingTable)); // doRefresh()
-    mockTableService.enqueue(mockResponse(200, existingTable)); // doRefresh()
-    String ddlWithSchema = "ALTER TABLE openhouse.dbSetRetention.t3 SET POLICY (RETENTION=300d)";
-    Assertions.assertThrows(UnsupportedOperationException.class, () -> spark.sql(ddlWithSchema));
+  public void testSetRetentionPolicyNonOpenHouseTable() {
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS testhelper.dbSetRetention");
+    spark.sql("CREATE TABLE testhelper.dbSetRetention.t3 (id int) USING iceberg");
+    String ddlWithSchema = "ALTER TABLE testhelper.dbSetRetention.t3 SET POLICY (RETENTION=300d)";
+    Assertions.assertThrows(
+        UnsupportedOperationException.class, () -> spark.sql(ddlWithSchema).show());
+    spark.sql("DROP TABLE testhelper.dbSetRetention.t3");
   }
 
   @Test
@@ -222,7 +209,7 @@ public class SetRetentionPolicyTest {
             "u1",
             mockTableLocationAfterOperation(
                 TableIdentifier.of("dbSetRetention", "t4"),
-                "ALTER TABLE %t SET TBLPROPERTIES('openhouse.tableId'='t4')"),
+                "ALTER TABLE %t SET TBLPROPERTIES('test.property'='test')"),
             "V1",
             baseSchema,
             null,

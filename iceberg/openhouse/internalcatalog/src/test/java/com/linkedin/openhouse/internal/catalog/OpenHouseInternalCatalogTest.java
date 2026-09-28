@@ -67,6 +67,36 @@ public class OpenHouseInternalCatalogTest {
   }
 
   @Test
+  void renameTableOnlyMovesTheCatalogEntry() {
+    HouseTableRepository repo = mock(HouseTableRepository.class);
+    HouseTable row =
+        HouseTable.builder().databaseId(DB).tableId(TABLE).tableLocation(METADATA_LOCATION).build();
+    when(repo.findById(any(HouseTablePrimaryKey.class))).thenReturn(Optional.of(row));
+    OpenHouseInternalCatalog catalog = new OpenHouseInternalCatalog();
+    catalog.houseTableRepository = repo;
+    TableIdentifier target = TableIdentifier.of(DB, TABLE + "_renamed");
+
+    catalog.renameTable(IDENTIFIER, target);
+
+    verify(repo).rename(DB, TABLE, DB, target.name(), METADATA_LOCATION);
+    verify(repo, never()).save(any(HouseTable.class));
+  }
+
+  @Test
+  void renameTableThrowsWhenSourceCatalogEntryIsMissing() {
+    HouseTableRepository repo = mock(HouseTableRepository.class);
+    when(repo.findById(any(HouseTablePrimaryKey.class))).thenReturn(Optional.empty());
+    OpenHouseInternalCatalog catalog = new OpenHouseInternalCatalog();
+    catalog.houseTableRepository = repo;
+
+    Assertions.assertThrows(
+        NoSuchTableException.class,
+        () -> catalog.renameTable(IDENTIFIER, TableIdentifier.of(DB, TABLE + "_renamed")));
+
+    verify(repo, never()).rename(any(), any(), any(), any(), any());
+  }
+
+  @Test
   void dropTableThrowsNoSuchTableWhenHouseTableMissing() {
     HouseTableRepository repo = mock(HouseTableRepository.class);
     when(repo.findById(any(HouseTablePrimaryKey.class))).thenReturn(Optional.empty());

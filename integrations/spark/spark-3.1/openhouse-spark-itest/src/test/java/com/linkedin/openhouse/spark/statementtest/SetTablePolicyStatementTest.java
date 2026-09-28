@@ -33,7 +33,9 @@ public class SetTablePolicyStatementTest {
                 ("org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,"
                     + "com.linkedin.openhouse.spark.extensions.OpenhouseSparkSessionExtensions"))
             .config("spark.sql.catalog.openhouse", "org.apache.iceberg.spark.SparkCatalog")
-            .config("spark.sql.catalog.openhouse.type", "hadoop")
+            .config(
+                "spark.sql.catalog.openhouse.catalog-impl",
+                "com.linkedin.openhouse.spark.statementtest.GrantRevokeStatementTest$GrantRevokeHadoopCatalog")
             .config("spark.sql.catalog.openhouse.warehouse", unittest.toString())
             .getOrCreate();
   }
@@ -134,12 +136,6 @@ public class SetTablePolicyStatementTest {
   public void setup() {
     spark.sql("CREATE TABLE openhouse.db.table (id bigint, data string) USING iceberg").show();
     spark.sql("CREATE TABLE openhouse.0_.0_ (id bigint, data string) USING iceberg").show();
-    spark
-        .sql("ALTER TABLE openhouse.db.table SET TBLPROPERTIES ('openhouse.tableId' = 'tableid')")
-        .show();
-    spark
-        .sql("ALTER TABLE openhouse.0_.0_ SET TBLPROPERTIES ('openhouse.tableId' = 'tableid')")
-        .show();
   }
 
   @AfterEach

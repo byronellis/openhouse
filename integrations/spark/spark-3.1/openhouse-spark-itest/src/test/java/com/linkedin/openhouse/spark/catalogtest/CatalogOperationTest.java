@@ -257,6 +257,8 @@ public class CatalogOperationTest extends OpenHouseSparkITest {
 
       TableIdentifier fromTableIdentifier = TableIdentifier.of("db", "rename_test");
       spark.sql("CREATE TABLE openhouse.db.rename_test (name string)");
+      Map<String, String> originalProperties =
+          icebergCatalog.loadTable(fromTableIdentifier).properties();
 
       TableIdentifier toTableIdentifier = TableIdentifier.of("db", "rename_test_renamed");
       spark.sql("ALTER TABLE openhouse.db.rename_test RENAME TO openhouse.db.rename_test_renamed");
@@ -264,9 +266,7 @@ public class CatalogOperationTest extends OpenHouseSparkITest {
       Table loadedTable = icebergCatalog.loadTable(toTableIdentifier);
       Assertions.assertNotNull(loadedTable);
 
-      Assertions.assertEquals(
-          loadedTable.properties().get("openhouse.tableUri"),
-          "local-cluster.db.rename_test_renamed");
+      Assertions.assertEquals(originalProperties, loadedTable.properties());
 
       Assertions.assertThrows(
           NoSuchTableException.class, () -> icebergCatalog.loadTable(fromTableIdentifier));

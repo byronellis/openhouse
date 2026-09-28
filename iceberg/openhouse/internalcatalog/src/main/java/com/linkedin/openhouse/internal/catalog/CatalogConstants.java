@@ -11,10 +11,7 @@ public final class CatalogConstants {
   public static final String IS_REPLACE_COMMIT_KEY = "isReplaceCommit";
   public static final String OPENHOUSE_TABLE_VERSION = "openhouse.tableVersion";
   public static final String OPENHOUSE_UUID_KEY = "openhouse.tableUUID";
-  public static final String OPENHOUSE_TABLEID_KEY = "openhouse.tableId";
-  public static final String OPENHOUSE_DATABASEID_KEY = "openhouse.databaseId";
   public static final String OPENHOUSE_IS_TABLE_REPLICATED_KEY = "openhouse.isTableReplicated";
-  public static final String OPENHOUSE_TABLEURI_KEY = "openhouse.tableUri";
   public static final String OPENHOUSE_CLUSTERID_KEY = "openhouse.clusterId";
   public static final String INITIAL_VERSION = "INITIAL_VERSION";
   public static final String LAST_UPDATED_MS = "last-updated-ms";

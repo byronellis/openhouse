@@ -579,8 +579,7 @@ public class RepositoryTest {
     Assertions.assertNotNull(returnedDto.getTableProperties());
     Assertions.assertFalse(returnedDto.getTableProperties().isEmpty());
     Assertions.assertEquals(returnedDto.getTableProperties().get("tableId"), "foo");
-    Assertions.assertEquals(
-        returnedDto.getTableProperties().get("openhouse.tableId"), TABLE_DTO.getTableId());
+    Assertions.assertFalse(returnedDto.getTableProperties().containsKey("openhouse.tableId"));
     Assertions.assertEquals(
         returnedDto.getTableProperties().get(TableProperties.DEFAULT_FILE_FORMAT).toLowerCase(),
         "avro");
@@ -1179,21 +1178,32 @@ public class RepositoryTest {
     /* create the base table */
     TableDto createdDTO = TABLE_DTO.toBuilder().tableVersion(INITIAL_TABLE_VERSION).build();
     openHouseInternalRepository.save(createdDTO);
-    /* Using catalog to do update first. */
     TableIdentifier fromTableIdentifier =
         TableIdentifier.of(createdDTO.getDatabaseId(), createdDTO.getTableId());
     TableIdentifier toTableIdentifier =
         TableIdentifier.of(createdDTO.getDatabaseId(), createdDTO.getTableId() + "_renamed");
+    catalog
+        .loadTable(fromTableIdentifier)
+        .updateProperties()
+        .set("openhouse.tableId", "stale_table_name")
+        .commit();
+    Map<String, String> originalTableProperties =
+        catalog.loadTable(fromTableIdentifier).properties();
+
     catalog.renameTable(fromTableIdentifier, toTableIdentifier);
 
-    Assertions.assertTrue(
+    TableDto renamedTable =
         openHouseInternalRepository
             .findById(
                 TableDtoPrimaryKey.builder()
                     .databaseId(toTableIdentifier.namespace().toString())
                     .tableId(toTableIdentifier.name())
                     .build())
-            .isPresent());
+            .orElseThrow(AssertionError::new);
+    Assertions.assertEquals(toTableIdentifier.name(), renamedTable.getTableId());
+    Assertions.assertEquals(toTableIdentifier.namespace().toString(), renamedTable.getDatabaseId());
+    Assertions.assertEquals(
+        "stale_table_name", renamedTable.getTableProperties().get("openhouse.tableId"));
 
     Assertions.assertFalse(
         openHouseInternalRepository
@@ -1203,6 +1213,8 @@ public class RepositoryTest {
                     .tableId(fromTableIdentifier.name())
                     .build())
             .isPresent());
+    Assertions.assertEquals(
+        originalTableProperties, catalog.loadTable(toTableIdentifier).properties());
   }
 
   @Test
@@ -1211,12 +1223,13 @@ public class RepositoryTest {
     TableDto createdDTO = TABLE_DTO.toBuilder().tableVersion(INITIAL_TABLE_VERSION).build();
     openHouseInternalRepository.save(createdDTO);
 
-    // Rename using upper case DB name
     TableIdentifier fromTableIdentifier =
         TableIdentifier.of(createdDTO.getDatabaseId(), createdDTO.getTableId());
     TableIdentifier toTableIdentifier =
         TableIdentifier.of(
             createdDTO.getDatabaseId().toUpperCase(), createdDTO.getTableId() + "_renamed");
+    Map<String, String> originalTableProperties =
+        catalog.loadTable(fromTableIdentifier).properties();
     catalog.renameTable(fromTableIdentifier, toTableIdentifier);
 
     // Search with original casing on database
@@ -1226,16 +1239,13 @@ public class RepositoryTest {
                 .databaseId(fromTableIdentifier.namespace().toString())
                 .tableId(toTableIdentifier.name())
                 .build());
+    TableIdentifier renamedIdentifier =
+        TableIdentifier.of(fromTableIdentifier.namespace().toString(), toTableIdentifier.name());
 
     Assertions.assertTrue(renamedTable.isPresent());
-
-    // Validate metadata is storing the preserved case
     Assertions.assertEquals(renamedTable.get().getDatabaseId(), "d1");
     Assertions.assertEquals(
-        renamedTable.get().getTableProperties().get("openhouse.databaseId"), "d1");
-    Assertions.assertEquals(
-        renamedTable.get().getTableProperties().get("openhouse.tableUri"),
-        "local-cluster.d1.t1_renamed");
+        originalTableProperties, catalog.loadTable(renamedIdentifier).properties());
   }
 
   @Test

@@ -3,12 +3,14 @@ package com.linkedin.openhouse.internal.catalog.mapper;
 import static com.linkedin.openhouse.internal.catalog.mapper.HouseTableSerdeUtils.IS_OH_PREFIXED;
 import static com.linkedin.openhouse.internal.catalog.mapper.HouseTableSerdeUtils.OPENHOUSE_NAMESPACE;
 
+import com.linkedin.openhouse.common.api.spec.TableUri;
 import com.linkedin.openhouse.housetables.client.model.UserTable;
 import com.linkedin.openhouse.internal.catalog.fileio.FileIOManager;
 import com.linkedin.openhouse.internal.catalog.model.HouseTable;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.FileIO;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
@@ -26,8 +28,9 @@ public abstract class HouseTableMapper {
       expression = "java(fileIOManager.getStorage(fileIO).getType().getValue())")
   public abstract HouseTable toHouseTable(Map<String, String> properties, FileIO fileIO);
 
-  public HouseTable toHouseTable(TableMetadata tableMetadata, FileIO fileIO) {
-    return toHouseTable(extractRawHTSFields(tableMetadata.properties()), fileIO);
+  public HouseTable toHouseTable(
+      TableMetadata tableMetadata, FileIO fileIO, TableIdentifier tableIdentifier) {
+    return toHouseTable(extractRawHTSFields(tableMetadata.properties(), tableIdentifier), fileIO);
   }
 
   @BeanMapping(ignoreByDefault = true)
@@ -44,15 +47,33 @@ public abstract class HouseTableMapper {
   @Mappings({@Mapping(target = "metadataLocation", source = "houseTable.tableLocation")})
   public abstract UserTable toUserTable(HouseTable houseTable);
 
-  private Map<String, String> extractRawHTSFields(Map<String, String> input) {
+  private Map<String, String> extractRawHTSFields(
+      Map<String, String> input, TableIdentifier tableIdentifier) {
     Map<String, String> output = new HashMap<>();
     for (Map.Entry<String, String> entry : input.entrySet()) {
       String key = entry.getKey();
       String value = entry.getValue();
-      if (isHtsField(key)) {
+      String fieldName = stripOhNamespace(key);
+      if (isHtsField(key)
+          && !fieldName.equals("databaseId")
+          && !fieldName.equals("tableId")
+          && !fieldName.equals("tableUri")) {
         String newKey = stripOhNamespace(key);
         output.put(newKey, value);
       }
+    }
+    String clusterId = input.get(getCanonicalFieldName("clusterId"));
+    output.put("databaseId", tableIdentifier.namespace().toString());
+    output.put("tableId", tableIdentifier.name());
+    if (clusterId != null) {
+      output.put(
+          "tableUri",
+          TableUri.builder()
+              .clusterId(clusterId)
+              .databaseId(tableIdentifier.namespace().toString())
+              .tableId(tableIdentifier.name())
+              .build()
+              .toString());
     }
     return output;
   }
@@ -64,5 +85,9 @@ public abstract class HouseTableMapper {
 
   static String stripOhNamespace(String key) {
     return IS_OH_PREFIXED.test(key) ? key.substring(OPENHOUSE_NAMESPACE.length()) : key;
+  }
+
+  private static String getCanonicalFieldName(String fieldName) {
+    return OPENHOUSE_NAMESPACE + fieldName;
   }
 }

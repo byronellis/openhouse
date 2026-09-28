@@ -1,5 +1,6 @@
 package com.linkedin.openhouse.spark.sql.execution.datasources.v2.mapper
 
+import com.linkedin.openhouse.javaclient.api.SupportsGrantRevoke
 import org.apache.iceberg.CachingCatalog
 import org.apache.iceberg.catalog.Catalog
 import org.apache.iceberg.common.DynFields
@@ -7,6 +8,9 @@ import org.apache.iceberg.spark.{SparkCatalog, SparkSessionCatalog}
 import org.apache.spark.sql.connector.catalog.TableCatalog
 
 object IcebergCatalogMapper {
+
+  def isOpenHouseCatalog(catalog: TableCatalog): Boolean =
+    toIcebergCatalog(catalog).isInstanceOf[SupportsGrantRevoke]
 
   /**
    * Convert Spark's {@link TableCatalog} to Iceberg's {@link Catalog}

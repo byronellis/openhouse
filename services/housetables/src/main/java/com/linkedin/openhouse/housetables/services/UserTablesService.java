@@ -60,8 +60,8 @@ public interface UserTablesService {
    * @param fromTableId The tableId of the row to rename.
    * @param toDatabaseId The new databaseId of the renamed row.
    * @param toTableId The new tableId of the renamed row.
-   * @param metadataLocation The new metadata file of the table with updated table properties for
-   *     updated ids.
+   * @param metadataLocation The existing metadata file location; renaming updates the catalog row
+   *     without rewriting table metadata.
    */
   void renameUserTable(
       String fromDatabaseId,

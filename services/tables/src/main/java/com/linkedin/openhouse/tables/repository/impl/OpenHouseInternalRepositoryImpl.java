@@ -82,6 +82,8 @@ public class OpenHouseInternalRepositoryImpl implements OpenHouseInternalReposit
 
   private static final String TABLE_TYPE_KEY = "tableType";
   private static final String CLUSTER_ID = "clusterId";
+  private static final Set<String> CATALOG_IDENTITY_FIELDS =
+      Set.of("databaseId", "tableId", "tableUri");
   private static final long DEFAULT_MAX_REFERENCE_AGE_MILLIS = TimeUnit.DAYS.toMillis(7);
 
   @Autowired Catalog catalog;
@@ -224,7 +226,12 @@ public class OpenHouseInternalRepositoryImpl implements OpenHouseInternalReposit
           System.currentTimeMillis() - startTime);
     }
     return convertToTableDto(
-        table, fileIOManager, partitionSpecMapper, policiesMapper, tableTypeMapper);
+        table,
+        tableIdentifier,
+        fileIOManager,
+        partitionSpecMapper,
+        policiesMapper,
+        tableTypeMapper);
   }
 
   protected Table createTable(
@@ -562,7 +569,7 @@ public class OpenHouseInternalRepositoryImpl implements OpenHouseInternalReposit
     // Populate server reserved properties
     Map<String, String> dtoMap = tableDto.convertToMap();
     for (String htsFieldName : HTS_FIELD_NAMES) {
-      if (dtoMap.get(htsFieldName) != null) {
+      if (dtoMap.get(htsFieldName) != null && !CATALOG_IDENTITY_FIELDS.contains(htsFieldName)) {
         if (htsFieldName.equals("tableLocation")) {
           propertiesMap.put(
               getCanonicalFieldName(htsFieldName), getSchemeLessPath(dtoMap.get(htsFieldName)));
@@ -808,7 +815,7 @@ public class OpenHouseInternalRepositoryImpl implements OpenHouseInternalReposit
     }
     return Optional.of(
         convertToTableDto(
-            table, fileIOManager, partitionSpecMapper, policiesMapper, tableTypeMapper));
+            table, tableId, fileIOManager, partitionSpecMapper, policiesMapper, tableTypeMapper));
   }
 
   @Override
@@ -906,15 +913,22 @@ public class OpenHouseInternalRepositoryImpl implements OpenHouseInternalReposit
   @Timed(metricKey = MetricsConstant.REPO_TABLES_FIND_ALL_TIME)
   @Override
   public Iterable<TableDto> findAll() {
-    List<Table> tables =
-        catalog.listTables(Namespace.empty()).stream()
-            .map(tableIdentifier -> catalog.loadTable(tableIdentifier))
-            .collect(Collectors.toList());
-    return tables.stream()
+    List<TableIdentifier> tableIdentifiers =
+        catalog instanceof OpenHouseInternalCatalog
+            ? ((OpenHouseInternalCatalog) catalog).listAllTableIdentifiers()
+            : catalog.listTables(Namespace.empty());
+    return tableIdentifiers.stream()
         .map(
-            table ->
-                convertToTableDto(
-                    table, fileIOManager, partitionSpecMapper, policiesMapper, tableTypeMapper))
+            tableIdentifier -> {
+              Table table = catalog.loadTable(tableIdentifier);
+              return convertToTableDto(
+                  table,
+                  tableIdentifier,
+                  fileIOManager,
+                  partitionSpecMapper,
+                  policiesMapper,
+                  tableTypeMapper);
+            })
         .collect(Collectors.toList());
   }
 
