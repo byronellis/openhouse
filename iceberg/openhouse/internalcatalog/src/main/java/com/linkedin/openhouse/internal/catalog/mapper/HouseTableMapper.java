@@ -5,6 +5,7 @@ import static com.linkedin.openhouse.internal.catalog.mapper.HouseTableSerdeUtil
 
 import com.linkedin.openhouse.common.api.spec.TableUri;
 import com.linkedin.openhouse.housetables.client.model.UserTable;
+import com.linkedin.openhouse.internal.catalog.CatalogConstants;
 import com.linkedin.openhouse.internal.catalog.fileio.FileIOManager;
 import com.linkedin.openhouse.internal.catalog.model.HouseTable;
 import java.util.HashMap;
@@ -52,17 +53,15 @@ public abstract class HouseTableMapper {
     Map<String, String> output = new HashMap<>();
     for (Map.Entry<String, String> entry : input.entrySet()) {
       String key = entry.getKey();
-      String value = entry.getValue();
       String fieldName = stripOhNamespace(key);
       if (isHtsField(key)
           && !fieldName.equals("databaseId")
           && !fieldName.equals("tableId")
           && !fieldName.equals("tableUri")) {
-        String newKey = stripOhNamespace(key);
-        output.put(newKey, value);
+        output.put(fieldName, entry.getValue());
       }
     }
-    String clusterId = input.get(getCanonicalFieldName("clusterId"));
+    String clusterId = input.get(CatalogConstants.OPENHOUSE_CLUSTERID_KEY);
     output.put("databaseId", tableIdentifier.namespace().toString());
     output.put("tableId", tableIdentifier.name());
     if (clusterId != null) {
@@ -85,9 +84,5 @@ public abstract class HouseTableMapper {
 
   static String stripOhNamespace(String key) {
     return IS_OH_PREFIXED.test(key) ? key.substring(OPENHOUSE_NAMESPACE.length()) : key;
-  }
-
-  private static String getCanonicalFieldName(String fieldName) {
-    return OPENHOUSE_NAMESPACE + fieldName;
   }
 }

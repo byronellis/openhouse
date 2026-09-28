@@ -415,14 +415,12 @@ public class OpenHouseTableOperationsTest {
     Map<String, String> baseProps = new HashMap<>();
     Map<String, String> metaDataProps = new HashMap<>();
     baseProps.put("openhouse.tableType", "REPLICA_TABLE");
-    baseProps.put("openhouse.clusterId", "cluster1");
     baseProps.put(
         "openhouse.policy",
         "{\"replication\":{\"config\":[{\"destination\":\"a\", \"interval\":\"1D\"}, {\"destination\":\"aa\", \"interval\":\"2D\"}]}}");
 
     TableMetadata base = mock(TableMetadata.class);
     metaDataProps.put("openhouse.tableType", "PRIMARY_TABLE");
-    metaDataProps.put("openhouse.clusterId", "cluster2");
     metaDataProps.put(
         "openhouse.policy",
         "{\"replication\":{\"config\":[{\"destination\":\"a\", \"interval\":\"1D\"}, {\"destination\":\"aa\", \"interval\":\"2D\"}]}}");
@@ -433,9 +431,8 @@ public class OpenHouseTableOperationsTest {
     when(base.schema()).thenReturn(schema);
 
     when(metadata.properties()).thenReturn(metaDataProps);
-    OpenHouseTableOperations openHouseTableOperations = mock(OpenHouseTableOperations.class);
-
-    when(openHouseTableOperations.getTableType(base, metadata)).thenCallRealMethod();
+    OpenHouseTableOperations openHouseTableOperations = refreshableOps(mock(TableApi.class));
+    openHouseTableOperations.setCurrentTableClusterId("cluster1");
     CreateUpdateTableRequestBody.TableTypeEnum tableType =
         openHouseTableOperations.getTableType(base, metadata);
 
