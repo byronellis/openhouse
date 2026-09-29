@@ -26,4 +26,6 @@ public class UserTableDto {
   Long deletedAtMs;
 
   Long purgeAfterMs;
+
+  String catalogProperties;
 }

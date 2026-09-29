@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS user_table_row (
                          metadata_location   VARCHAR (512)     ,
                          storage_type        VARCHAR (128)     DEFAULT 'hdfs' NOT NULL,
                          creation_time       BIGINT            DEFAULT NULL,
+                         catalog_properties  MEDIUMTEXT,
                          last_modified_time  TIMESTAMP         DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                          ETL_TS              DATETIME(6)       DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
                          PRIMARY KEY (database_id, table_id)
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS soft_deleted_user_table_row (
     metadata_location   VARCHAR (512)     ,
     storage_type        VARCHAR (128)     DEFAULT 'hdfs' NOT NULL,
     creation_time       BIGINT            DEFAULT NULL,
+    catalog_properties  MEDIUMTEXT,
     last_modified_time  TIMESTAMP         DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     ETL_TS              DATETIME(6)       DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     purge_after_ms      BIGINT          NOT NULL,

@@ -8,10 +8,6 @@ import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.linkedin.openhouse.cluster.metrics.micrometer.MetricsReporter;
-import com.linkedin.openhouse.cluster.storage.Storage;
-import com.linkedin.openhouse.cluster.storage.StorageClient;
-import com.linkedin.openhouse.cluster.storage.hdfs.HdfsStorageClient;
-import com.linkedin.openhouse.cluster.storage.local.LocalStorageClient;
 import com.linkedin.openhouse.common.api.spec.TableUri;
 import com.linkedin.openhouse.common.exception.InvalidTableMetadataException;
 import com.linkedin.openhouse.internal.catalog.cache.TableMetadataCache;
@@ -25,14 +21,12 @@ import com.linkedin.openhouse.internal.catalog.repository.HouseTableRepository;
 import com.linkedin.openhouse.internal.catalog.repository.exception.HouseTableCallerException;
 import com.linkedin.openhouse.internal.catalog.repository.exception.HouseTableConcurrentUpdateException;
 import com.linkedin.openhouse.internal.catalog.repository.exception.HouseTableNotFoundException;
-import com.linkedin.openhouse.internal.catalog.utils.MetadataUpdateUtils;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
-import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -45,7 +39,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -172,18 +165,37 @@ public class OpenHouseInternalTableOperations extends BaseMetastoreTableOperatio
           String.format(
               "Cannot find table %s after refresh, maybe another process deleted it", tableName()));
     }
-    refreshMetadata(houseTable.map(HouseTable::getTableLocation).orElse(null));
+    refreshMetadata(
+        houseTable.map(HouseTable::getTableLocation).orElse(null),
+        houseTable.map(HouseTable::getCatalogProperties).orElse(null));
   }
 
   /** A wrapper function to encapsulate timer logic for loading metadata. */
   @WithSpan("IcebergTableOps.refreshMetadata")
   protected void refreshMetadata(final String metadataLoc) {
+    refreshMetadata(metadataLoc, null);
+  }
+
+  protected void refreshMetadata(final String metadataLoc, String catalogPropertiesJson) {
     long startTime = System.currentTimeMillis();
     boolean needToReload = !Objects.equal(currentMetadataLocation(), metadataLoc);
     Runnable r =
         () ->
             super.refreshFromMetadataLocation(
-                metadataLoc, null, 20, this::loadTableMetadataWithCache);
+                metadataLoc,
+                null,
+                20,
+                location -> {
+                  TableMetadata loaded = loadTableMetadataWithCache(location);
+                  if (catalogPropertiesJson == null) {
+                    return loaded;
+                  }
+                  return TableMetadata.buildFrom(loaded)
+                      .setProperties(
+                          CatalogTableProperties.overlay(
+                              loaded.properties(), catalogPropertiesJson))
+                      .build();
+                });
     try {
       if (needToReload) {
         metricsReporter.executeWithStats(
@@ -329,8 +341,9 @@ public class OpenHouseInternalTableOperations extends BaseMetastoreTableOperatio
       failIfRetryUpdate(properties);
       restoreOverriddenProperties(properties);
 
+      boolean isReplicatedTableCreate = isReplicatedTableCreate(properties, base);
       String currentTsString = String.valueOf(Instant.now(Clock.systemUTC()).toEpochMilli());
-      if (isReplicatedTableCreate(properties, base)) {
+      if (isReplicatedTableCreate) {
         currentTsString =
             metadata.properties().getOrDefault(CatalogConstants.LAST_UPDATED_MS, currentTsString);
       }
@@ -347,6 +360,14 @@ public class OpenHouseInternalTableOperations extends BaseMetastoreTableOperatio
           existingHouseTable == null
               ? houseTableMapper.toHouseTable(metadata, fileIO, tableIdentifier)
               : existingHouseTable;
+      Map<String, String> catalogProperties =
+          CatalogTableProperties.deserialize(propertiesHouseTable.getCatalogProperties());
+      if (existingHouseTable != null
+          && existingHouseTable.getCatalogProperties() == null
+          && base != null) {
+        catalogProperties.putAll(CatalogTableProperties.extract(base.properties()));
+      }
+      updateCatalogProperties(catalogProperties, base, metadata, properties);
       String clusterId = propertiesHouseTable.getClusterId();
       houseTable =
           propertiesHouseTable
@@ -365,10 +386,12 @@ public class OpenHouseInternalTableOperations extends BaseMetastoreTableOperatio
               .tableVersion(previousMetadataLocation)
               .lastModifiedTime(currentTimestamp)
               .creationTime(creationTime)
+              .catalogProperties(CatalogTableProperties.serialize(catalogProperties))
               .build();
 
       HouseTableSerdeUtils.HTS_FIELD_NAMES.forEach(
           fieldName -> properties.remove(getCanonicalFieldName(fieldName)));
+      properties.keySet().removeIf(CatalogTableProperties::isCatalogProperty);
 
       if (properties.containsKey(CatalogConstants.EVOLVED_SCHEMA_KEY)) {
         properties.remove(CatalogConstants.EVOLVED_SCHEMA_KEY);
@@ -377,6 +400,7 @@ public class OpenHouseInternalTableOperations extends BaseMetastoreTableOperatio
       if (properties.containsKey(CatalogConstants.INTERMEDIATE_SCHEMAS_KEY)) {
         properties.remove(CatalogConstants.INTERMEDIATE_SCHEMAS_KEY);
       }
+      properties.remove(CatalogConstants.CLIENT_TABLE_SCHEMA);
 
       String serializedSnapshotsToPut = properties.remove(CatalogConstants.SNAPSHOTS_JSON_KEY);
       String serializedSnapshotRefs = properties.remove(CatalogConstants.SNAPSHOTS_REFS_KEY);
@@ -482,27 +506,10 @@ public class OpenHouseInternalTableOperations extends BaseMetastoreTableOperatio
          * "forced refresh" in {@link OpenHouseInternalTableOperations#commit(TableMetadata,
          * TableMetadata)}
          */
-        refreshMetadata(newMetadataLocation);
-      }
-      if (isReplicatedTableCreate(properties, base)) {
-        updateMetadataFieldForTable(metadata, newMetadataLocation);
+        refreshMetadata(newMetadataLocation, CatalogTableProperties.serialize(catalogProperties));
       }
       committedMetadata = Optional.of(updatedMtDataRef);
       commitStatus = CommitStatus.SUCCESS;
-    } catch (IOException ioe) {
-      commitStatus = checkCommitStatus(newMetadataLocation, metadata);
-      // clean up the HTS entry
-      try {
-        houseTableRepository.delete(houseTable);
-      } catch (HouseTableCallerException
-          | HouseTableNotFoundException
-          | HouseTableConcurrentUpdateException e) {
-        log.warn(
-            "Failed to delete house table during IOException cleanup for table: {}",
-            tableIdentifier,
-            e);
-      }
-      throw new CommitFailedException(ioe);
     } catch (InvalidIcebergSnapshotException | IllegalArgumentException e) {
       throw new BadRequestException(e, e.getMessage());
     } catch (ValidationException e) {
@@ -555,6 +562,29 @@ public class OpenHouseInternalTableOperations extends BaseMetastoreTableOperatio
           break;
         default:
           break; /*should never happen, kept to silence SpotBugs*/
+      }
+    }
+  }
+
+  private void updateCatalogProperties(
+      Map<String, String> catalogProperties,
+      TableMetadata base,
+      TableMetadata metadata,
+      Map<String, String> commitProperties) {
+    if (base == null) {
+      catalogProperties.putAll(CatalogTableProperties.extract(commitProperties));
+      return;
+    }
+    Set<String> changedKeys = new java.util.HashSet<>(base.properties().keySet());
+    changedKeys.addAll(metadata.properties().keySet());
+    for (String key : changedKeys) {
+      if (!CatalogTableProperties.isCatalogProperty(key)) {
+        continue;
+      }
+      if (metadata.properties().containsKey(key)) {
+        catalogProperties.put(key, metadata.properties().get(key));
+      } else {
+        catalogProperties.remove(key);
       }
     }
   }
@@ -885,31 +915,6 @@ public class OpenHouseInternalTableOperations extends BaseMetastoreTableOperatio
    */
   private String[] getCatalogMetricTags() {
     return new String[] {};
-  }
-
-  /**
-   * Updates metadata field for staged tables by extracting updateTimeStamp from metadata.properties
-   * and updating the metadata file. Should be used only for replicated table.
-   *
-   * @param metadata The table metadata containing properties
-   */
-  private void updateMetadataFieldForTable(TableMetadata metadata, String tableLocation)
-      throws IOException {
-    String updateTimeStamp = metadata.properties().get(CatalogConstants.LAST_UPDATED_MS);
-    if (updateTimeStamp != null) {
-      Storage storage = fileIOManager.getStorage(fileIO);
-      // Support only for HDFS Storage and local storage clients
-      if (storage != null
-          && (storage.getClient() instanceof HdfsStorageClient
-              || storage.getClient() instanceof LocalStorageClient)) {
-        StorageClient<?> client = storage.getClient();
-        FileSystem fs = (FileSystem) client.getNativeClient();
-        if (tableLocation != null) {
-          MetadataUpdateUtils.updateMetadataField(
-              fs, tableLocation, CatalogConstants.LAST_UPDATED_MS, Long.valueOf(updateTimeStamp));
-        }
-      }
-    }
   }
 
   /**

@@ -1,5 +1,6 @@
 package com.linkedin.openhouse.internal.catalog.model;
 
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.IdClass;
@@ -51,4 +52,7 @@ public class HouseTable {
    * with this table.
    */
   private String storageType;
+
+  @Column(columnDefinition = "MEDIUMTEXT")
+  private String catalogProperties;
 }

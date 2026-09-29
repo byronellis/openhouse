@@ -47,6 +47,15 @@ public class UserTableIcebergRowPrimaryKey implements IcebergRowPrimaryKey {
         .tableId((String) record.getField("tableId"))
         .version((String) record.getField("version"))
         .metadataLocation((String) record.getField("metadataLocation"))
+        .catalogProperties(getCatalogProperties(record))
         .build();
+  }
+
+  private static String getCatalogProperties(Record record) {
+    try {
+      return (String) record.getField("catalogProperties");
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
   }
 }

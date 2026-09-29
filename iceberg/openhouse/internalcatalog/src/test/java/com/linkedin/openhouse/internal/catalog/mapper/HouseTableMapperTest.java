@@ -7,6 +7,7 @@ import com.linkedin.openhouse.cluster.storage.local.LocalStorage;
 import com.linkedin.openhouse.housetables.client.api.ToggleStatusApi;
 import com.linkedin.openhouse.housetables.client.api.UserTableApi;
 import com.linkedin.openhouse.housetables.client.invoker.ApiClient;
+import com.linkedin.openhouse.housetables.client.model.UserTable;
 import com.linkedin.openhouse.internal.catalog.fileio.FileIOManager;
 import com.linkedin.openhouse.internal.catalog.model.HouseTable;
 import com.linkedin.openhouse.internal.catalog.repository.HouseTableRepository;
@@ -102,5 +103,20 @@ public class HouseTableMapperTest {
     Assertions.assertEquals("catalog_table", houseTable.getTableId());
     Assertions.assertEquals(
         "test_cluster.catalog_database.catalog_table", houseTable.getTableUri());
+  }
+
+  @Test
+  public void catalogPropertiesRoundTripFromHtsResponse() {
+    String catalogProperties = "{\"openhouse.tableType\":\"REPLICA_TABLE\"}";
+    UserTable userTable =
+        new UserTable()
+            .tableId("table")
+            .databaseId("database")
+            .metadataLocation("metadata_location")
+            .catalogProperties(catalogProperties);
+
+    HouseTable houseTable = houseTableMapper.toHouseTable(userTable);
+
+    Assertions.assertEquals(catalogProperties, houseTable.getCatalogProperties());
   }
 }

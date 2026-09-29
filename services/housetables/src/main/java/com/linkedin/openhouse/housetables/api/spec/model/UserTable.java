@@ -77,6 +77,21 @@ public class UserTable {
       defaultValue = "null")
   private Long purgeAfterMs;
 
+  @Schema(
+      description =
+          "OpenHouse-owned catalog state serialized as JSON. It is stored in the House Table "
+              + "catalog, not in Iceberg table metadata.")
+  @JsonProperty(value = "catalogProperties")
+  private String catalogProperties;
+
+  @Schema(
+      description =
+          "OpenHouse-owned catalog state serialized as JSON. It is stored in the House Table "
+              + "catalog, not in Iceberg table metadata.")
+  public String getCatalogProperties() {
+    return catalogProperties;
+  }
+
   public String toJson() {
     return new Gson().toJson(this);
   }

@@ -25,13 +25,16 @@ public class UserTableIcebergRow implements IcebergRow {
 
   private String metadataLocation;
 
+  private String catalogProperties;
+
   @Override
   public Schema getSchema() {
     return new Schema(
         Types.NestedField.required(1, "databaseId", Types.StringType.get()),
         Types.NestedField.required(2, "tableId", Types.StringType.get()),
         Types.NestedField.required(3, "version", Types.StringType.get()),
-        Types.NestedField.required(4, "metadataLocation", Types.StringType.get()));
+        Types.NestedField.required(4, "metadataLocation", Types.StringType.get()),
+        Types.NestedField.optional(5, "catalogProperties", Types.StringType.get()));
   }
 
   @Override
@@ -41,6 +44,7 @@ public class UserTableIcebergRow implements IcebergRow {
     genericRecord.setField("tableId", tableId);
     genericRecord.setField("version", version);
     genericRecord.setField("metadataLocation", metadataLocation);
+    genericRecord.setField("catalogProperties", catalogProperties);
     return genericRecord;
   }
 
