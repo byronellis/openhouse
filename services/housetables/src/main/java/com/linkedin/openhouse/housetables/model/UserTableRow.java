@@ -1,6 +1,5 @@
 package com.linkedin.openhouse.housetables.model;
 
-import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.IdClass;
@@ -33,7 +32,4 @@ public class UserTableRow {
   String storageType;
 
   Long creationTime;
-
-  @Column(columnDefinition = "MEDIUMTEXT")
-  String catalogProperties;
 }

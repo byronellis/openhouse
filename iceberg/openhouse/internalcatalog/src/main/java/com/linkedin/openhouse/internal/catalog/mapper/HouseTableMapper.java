@@ -6,7 +6,6 @@ import static com.linkedin.openhouse.internal.catalog.mapper.HouseTableSerdeUtil
 import com.linkedin.openhouse.common.api.spec.TableUri;
 import com.linkedin.openhouse.housetables.client.model.UserTable;
 import com.linkedin.openhouse.internal.catalog.CatalogConstants;
-import com.linkedin.openhouse.internal.catalog.CatalogTableProperties;
 import com.linkedin.openhouse.internal.catalog.fileio.FileIOManager;
 import com.linkedin.openhouse.internal.catalog.model.HouseTable;
 import java.util.HashMap;
@@ -43,10 +42,7 @@ public abstract class HouseTableMapper {
   @Mapping(target = "databaseId", source = "houseTable.databaseId")
   public abstract UserTable toUserTableWithDatabaseId(HouseTable houseTable);
 
-  @Mappings({
-    @Mapping(target = "tableLocation", source = "userTable.metadataLocation"),
-    @Mapping(target = "catalogProperties", source = "userTable.catalogProperties")
-  })
+  @Mappings({@Mapping(target = "tableLocation", source = "userTable.metadataLocation")})
   public abstract HouseTable toHouseTable(UserTable userTable);
 
   @Mappings({@Mapping(target = "metadataLocation", source = "houseTable.tableLocation")})
@@ -78,9 +74,6 @@ public abstract class HouseTableMapper {
               .build()
               .toString());
     }
-    output.put(
-        "catalogProperties",
-        CatalogTableProperties.serialize(CatalogTableProperties.extract(input)));
     return output;
   }
 
@@ -90,8 +83,6 @@ public abstract class HouseTableMapper {
   }
 
   static String stripOhNamespace(String key) {
-    return key != null && IS_OH_PREFIXED.test(key)
-        ? key.substring(OPENHOUSE_NAMESPACE.length())
-        : key;
+    return IS_OH_PREFIXED.test(key) ? key.substring(OPENHOUSE_NAMESPACE.length()) : key;
   }
 }

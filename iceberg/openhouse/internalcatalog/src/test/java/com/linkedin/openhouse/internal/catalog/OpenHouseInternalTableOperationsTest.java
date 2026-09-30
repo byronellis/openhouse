@@ -5,8 +5,10 @@ import static com.linkedin.openhouse.internal.catalog.mapper.HouseTableSerdeUtil
 import static org.mockito.Mockito.*;
 
 import com.linkedin.openhouse.cluster.metrics.micrometer.MetricsReporter;
+import com.linkedin.openhouse.cluster.storage.StorageClient;
 import com.linkedin.openhouse.cluster.storage.StorageType;
 import com.linkedin.openhouse.cluster.storage.local.LocalStorage;
+import com.linkedin.openhouse.cluster.storage.local.LocalStorageClient;
 import com.linkedin.openhouse.common.exception.InvalidTableMetadataException;
 import com.linkedin.openhouse.internal.catalog.cache.TableMetadataCache;
 import com.linkedin.openhouse.internal.catalog.fileio.FileIOManager;
@@ -18,6 +20,7 @@ import com.linkedin.openhouse.internal.catalog.repository.exception.HouseTableCa
 import com.linkedin.openhouse.internal.catalog.repository.exception.HouseTableConcurrentUpdateException;
 import com.linkedin.openhouse.internal.catalog.repository.exception.HouseTableNotFoundException;
 import com.linkedin.openhouse.internal.catalog.repository.exception.HouseTableRepositoryStateUnknownException;
+import com.linkedin.openhouse.internal.catalog.utils.MetadataUpdateUtils;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -43,6 +46,7 @@ import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import org.apache.commons.compress.utils.Lists;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -94,6 +98,10 @@ public class OpenHouseInternalTableOperationsTest {
   @Captor private ArgumentCaptor<TableMetadata> tblMetadataCaptor;
   @Mock private FileIOManager fileIOManager;
   @Mock private MetricsReporter mockMetricsReporter;
+  @Mock private FileSystem mockFileSystem;
+  @Mock private LocalStorageClient mockLocalStorageClient;
+  @Mock private FSDataInputStream mockFSDataInputStream;
+  @Mock private FSDataOutputStream mockFSDataOutputStream;
   @Mock private PostCommitOperationRunner mockPostCommitOperationRunner;
 
   private TableMetadataCache tableMetadataCache;
@@ -517,60 +525,126 @@ public class OpenHouseInternalTableOperationsTest {
     }
   }
 
+  /**
+   * Tests that metadata file updates are performed for replicated table initial version commits.
+   * Verifies that updateMetadataField is called with the correct parameters for replicated tables.
+   */
   @Test
-  void testReplicatedOperationalPropertiesAreStoredInCatalogOnly() throws IOException {
+  void testDoCommitUpdateMetadataForInitalVersionCommit() throws IOException {
     Map<String, String> properties = new HashMap<>();
     properties.put(CatalogConstants.LAST_UPDATED_MS, "1233232423");
     properties.put(CatalogConstants.OPENHOUSE_IS_TABLE_REPLICATED_KEY, "true");
-    properties.put(getCanonicalFieldName("tableType"), "REPLICA_TABLE");
-    properties.put(CatalogConstants.RTAS_ENABLED_TABLE_PROP, "true");
-    properties.put(CatalogTableProperties.POLICIES_KEY, "{\"replication\":{}}");
+    properties.put(CatalogConstants.OPENHOUSE_TABLE_VERSION, CatalogConstants.INITIAL_VERSION);
     TableMetadata metadata = BASE_TABLE_METADATA.replaceProperties(properties);
 
-    openHouseInternalTableOperations.doCommit(null, metadata);
+    // Setup mocks for filesystem operations
+    LocalStorage mockLocalStorage = mock(LocalStorage.class);
+    when(fileIOManager.getStorage(any(FileIO.class))).thenReturn(mockLocalStorage);
+    when(mockLocalStorage.getClient()).thenReturn((StorageClient) mockLocalStorageClient);
+    when(mockLocalStorageClient.getNativeClient()).thenReturn(mockFileSystem);
+
+    // Mock filesystem operations for MetadataUpdateUtils.updateMetadataField
+    when(mockFileSystem.open(any(Path.class))).thenReturn(mockFSDataInputStream);
+    when(mockFileSystem.create(any(Path.class), eq(true))).thenReturn(mockFSDataOutputStream);
+
+    // Mock input stream to return JSON content that can be parsed
+    String mockJsonContent = "{\"last-updated-ms\": 1233232422}";
+    when(mockFSDataInputStream.read(any(byte[].class)))
+        .thenAnswer(
+            invocation -> {
+              byte[] buffer = invocation.getArgument(0);
+              byte[] content = mockJsonContent.getBytes();
+              System.arraycopy(content, 0, buffer, 0, Math.min(content.length, buffer.length));
+              return content.length;
+            });
+    when(mockFSDataInputStream.read()).thenReturn(-1); // EOF
+
+    try (MockedStatic<MetadataUpdateUtils> mockedMetadataUpdateUtils =
+        mockStatic(MetadataUpdateUtils.class)) {
+      openHouseInternalTableOperations.doCommit(null, metadata);
+
+      // Verify updateMetadataField was called
+      mockedMetadataUpdateUtils.verify(
+          () ->
+              MetadataUpdateUtils.updateMetadataField(
+                  eq(mockFileSystem), anyString(), eq("last-updated-ms"), eq(1233232423L)));
+    }
 
     TableMetadata committedMetadata = getPersistedMetadata();
     assertNoHtsProperties(committedMetadata);
-    for (String key : properties.keySet()) {
-      Assertions.assertFalse(committedMetadata.properties().containsKey(key), key);
-    }
 
-    ArgumentCaptor<HouseTable> houseTableCaptor = ArgumentCaptor.forClass(HouseTable.class);
-    verify(mockHouseTableRepository).save(houseTableCaptor.capture());
-    HouseTable savedHouseTable = houseTableCaptor.getValue();
-    Assertions.assertEquals(1233232423L, savedHouseTable.getLastModifiedTime());
-    Assertions.assertEquals(
-        properties, CatalogTableProperties.deserialize(savedHouseTable.getCatalogProperties()));
+    // Verify filesystem operations were performed
+    verify(fileIOManager).getStorage(any(FileIO.class));
+    // Called 3 times: 2x for instanceof checks, 1x for assignment
+    verify(mockLocalStorage, times(3)).getClient();
+    verify(mockLocalStorageClient).getNativeClient();
   }
 
+  /**
+   * Tests that metadata file updates are not performed for non-replicated tables. Verifies that
+   * updateMetadataField is never called when the table is not replicated.
+   */
   @Test
-  void testCommitMigratesLegacyOperationalPropertiesToCatalog() throws IOException {
-    Map<String, String> legacyProperties =
-        ImmutableMap.of(
-            CatalogConstants.OPENHOUSE_IS_TABLE_REPLICATED_KEY,
-            "true",
-            CatalogConstants.RTAS_ENABLED_TABLE_PROP,
-            "true",
-            CatalogTableProperties.POLICIES_KEY,
-            "{\"replication\":{}}");
-    TableMetadata base = BASE_TABLE_METADATA.replaceProperties(legacyProperties);
-    TableMetadata metadata = base.replaceProperties(legacyProperties);
-    HouseTable legacyHouseTable = newHouseTable();
-    when(mockHouseTableRepository.findById(any(HouseTablePrimaryKey.class)))
-        .thenReturn(Optional.of(legacyHouseTable));
+  void testDoCommitUpdateMetadataNotCalledForNonReplicatedTable() throws IOException {
+    Map<String, String> properties = new HashMap<>();
+    properties.put("last-updated-ms", "1233232423");
+    properties.put(CatalogConstants.OPENHOUSE_TABLE_VERSION, CatalogConstants.INITIAL_VERSION);
+    TableMetadata base = BASE_TABLE_METADATA;
 
-    openHouseInternalTableOperations.doCommit(base, metadata);
+    TableMetadata metadata = base.replaceProperties(properties);
 
-    TableMetadata committedMetadata = getPersistedMetadata();
-    legacyProperties
-        .keySet()
-        .forEach(
-            key -> Assertions.assertFalse(committedMetadata.properties().containsKey(key), key));
-    ArgumentCaptor<HouseTable> houseTableCaptor = ArgumentCaptor.forClass(HouseTable.class);
-    verify(mockHouseTableRepository).save(houseTableCaptor.capture());
-    Assertions.assertEquals(
-        legacyProperties,
-        CatalogTableProperties.deserialize(houseTableCaptor.getValue().getCatalogProperties()));
+    // Setup mocks for filesystem operations
+    LocalStorage mockLocalStorage = mock(LocalStorage.class);
+    when(fileIOManager.getStorage(any(FileIO.class))).thenReturn(mockLocalStorage);
+    when(mockLocalStorage.getClient()).thenReturn((StorageClient) mockLocalStorageClient);
+    when(mockLocalStorageClient.getNativeClient()).thenReturn(mockFileSystem);
+
+    try (MockedStatic<MetadataUpdateUtils> mockedMetadataUpdateUtils =
+        mockStatic(MetadataUpdateUtils.class)) {
+      openHouseInternalTableOperations.doCommit(base, metadata);
+
+      // Verify updateMetadataField was NOT called since table is not replicated
+      mockedMetadataUpdateUtils.verifyNoInteractions();
+    }
+
+    Mockito.verify(mockHouseTableRepository, Mockito.times(1)).save(Mockito.any(HouseTable.class));
+  }
+
+  /**
+   * Tests that metadata file updates are not performed for non-initial version commits. Verifies
+   * that updateMetadataField is only called during table creation, not for subsequent updates.
+   */
+  @Test
+  void testDoCommitUpdateMetadataNotCalledForNonInitialVersionCommit() throws IOException {
+    Map<String, String> properties = new HashMap<>();
+    properties.put("last-updated-ms", "1233232423");
+    properties.put(CatalogConstants.OPENHOUSE_IS_TABLE_REPLICATED_KEY, "true");
+    properties.put(CatalogConstants.OPENHOUSE_TABLE_VERSION, "v1.0.0");
+
+    // Set tableLocation to a non-INITIAL_VERSION value so that tableVersion gets set to this value
+    // This will cause isReplicatedTableCreate to return false since tableVersion != INITIAL_VERSION
+    properties.put(getCanonicalFieldName("tableLocation"), "some-existing-table-location");
+
+    // Use existing table metadata (base != null) to simulate a snapshot commit rather than table
+    // creation
+    TableMetadata base = BASE_TABLE_METADATA;
+    TableMetadata metadata = base.replaceProperties(properties);
+
+    // Setup mocks for filesystem operations
+    LocalStorage mockLocalStorage = mock(LocalStorage.class);
+    when(fileIOManager.getStorage(any(FileIO.class))).thenReturn(mockLocalStorage);
+    when(mockLocalStorage.getClient()).thenReturn((StorageClient) mockLocalStorageClient);
+    when(mockLocalStorageClient.getNativeClient()).thenReturn(mockFileSystem);
+
+    try (MockedStatic<MetadataUpdateUtils> mockedMetadataUpdateUtils =
+        mockStatic(MetadataUpdateUtils.class)) {
+      openHouseInternalTableOperations.doCommit(base, metadata);
+
+      // Verify updateMetadataField was NOT called since this is not an initial version commit
+      mockedMetadataUpdateUtils.verifyNoInteractions();
+    }
+
+    Mockito.verify(mockHouseTableRepository, Mockito.times(1)).save(Mockito.any(HouseTable.class));
   }
 
   /**
@@ -1297,49 +1371,6 @@ public class OpenHouseInternalTableOperationsTest {
               TableMetadataParser.read(
                   Mockito.any(FileIO.class), Mockito.eq("test_metadata_location")),
           times(1));
-    }
-  }
-
-  @Test
-  void testRefreshOverlaysCatalogOwnedProperties() {
-    Map<String, String> catalogProperties =
-        ImmutableMap.of(
-            CatalogConstants.OPENHOUSE_IS_TABLE_REPLICATED_KEY,
-            "true",
-            CatalogConstants.RTAS_ENABLED_TABLE_PROP,
-            "true");
-    HouseTable houseTable =
-        newHouseTable()
-            .toBuilder()
-            .tableLocation("test_metadata_location")
-            .catalogProperties(CatalogTableProperties.serialize(catalogProperties))
-            .build();
-    when(mockHouseTableRepository.findById(any(HouseTablePrimaryKey.class)))
-        .thenReturn(Optional.of(houseTable));
-
-    try (MockedStatic<TableMetadataParser> parserMock =
-        Mockito.mockStatic(TableMetadataParser.class, Mockito.CALLS_REAL_METHODS)) {
-      parserMock
-          .when(
-              () ->
-                  TableMetadataParser.read(
-                      Mockito.any(FileIO.class), Mockito.eq("test_metadata_location")))
-          .thenReturn(BASE_TABLE_METADATA);
-
-      openHouseInternalTableOperations.refresh();
-
-      Assertions.assertEquals(
-          "true",
-          openHouseInternalTableOperations
-              .current()
-              .properties()
-              .get(CatalogConstants.OPENHOUSE_IS_TABLE_REPLICATED_KEY));
-      Assertions.assertEquals(
-          "true",
-          openHouseInternalTableOperations
-              .current()
-              .properties()
-              .get(CatalogConstants.RTAS_ENABLED_TABLE_PROP));
     }
   }
 

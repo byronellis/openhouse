@@ -162,8 +162,6 @@ public class OpenHouseTableOperations extends BaseMetastoreTableOperations {
           "Cannot find table %s after refresh, maybe another process deleted it", tableName());
     }
     Map<String, String> fetched = tableResponse.map(GetTableResponseBody::getConfig).orElse(null);
-    Map<String, String> tableProperties =
-        tableResponse.map(GetTableResponseBody::getTableProperties).orElse(null);
     AtomicBoolean loaded = new AtomicBoolean();
     // Iceberg skips the loader when tableLocation is unchanged. UUID is checked after the loader
     // returns; bind only if this call actually accepted a reload.
@@ -172,7 +170,7 @@ public class OpenHouseTableOperations extends BaseMetastoreTableOperations {
         null,
         20,
         location -> {
-          TableMetadata bridged = loadMetadata(location, fetched, tableProperties);
+          TableMetadata bridged = loadMetadata(location, fetched);
           loaded.set(true);
           return bridged;
         });
@@ -191,11 +189,6 @@ public class OpenHouseTableOperations extends BaseMetastoreTableOperations {
    * wrap includes {@link #tableName()} so a Spark job over many tables can tell which one failed.
    */
   protected TableMetadata loadMetadata(String metadataLocation, Map<String, String> fetched) {
-    return loadMetadata(metadataLocation, fetched, null);
-  }
-
-  protected TableMetadata loadMetadata(
-      String metadataLocation, Map<String, String> fetched, Map<String, String> tableProperties) {
     final ReadBridge bridge;
     try {
       bridge = ReadBridge.from(fetched);
@@ -204,11 +197,7 @@ public class OpenHouseTableOperations extends BaseMetastoreTableOperations {
     }
     TableMetadata raw = TableMetadataParser.read(io(), metadataLocation);
     try {
-      TableMetadata withCatalogState =
-          tableProperties == null
-              ? raw
-              : TableMetadata.buildFrom(raw).setProperties(tableProperties).build();
-      return bridge.apply(withCatalogState);
+      return bridge.apply(raw);
     } catch (ReadBridgeException e) {
       throw unrecoverableBridge(e);
     }

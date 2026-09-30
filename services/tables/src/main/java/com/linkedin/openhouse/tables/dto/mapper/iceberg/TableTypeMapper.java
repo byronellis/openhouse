@@ -16,14 +16,11 @@ public class TableTypeMapper {
 
   @Named("toTableType")
   public TableType toTableType(Table table) {
-    return toTableType(table.properties());
-  }
-
-  public TableType toTableType(Map<String, String> properties) {
+    Map<String, String> properties = table.properties();
     if (properties.containsKey(getCanonicalFieldName("tableType"))) {
       return TableType.valueOf(properties.get(getCanonicalFieldName("tableType")));
     } else {
-      return TableType.PRIMARY_TABLE;
+      return null;
     }
   }
 }

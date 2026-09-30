@@ -335,16 +335,6 @@ public class UserTablesServiceTest {
 
   @Test
   public void testUserTableSoftDelete() {
-    String catalogProperties = "{\"openhouse.tableType\":\"REPLICA_TABLE\"}";
-    String metadataLocation = TEST_TUPLE_1_0.get_userTableRow().getMetadataLocation();
-    userTablesService.putUserTable(
-        UserTable.builder()
-            .tableId(TEST_TUPLE_1_0.getTableId())
-            .databaseId(TEST_TUPLE_1_0.getDatabaseId())
-            .metadataLocation(metadataLocation)
-            .tableVersion(metadataLocation)
-            .catalogProperties(catalogProperties)
-            .build());
     UserTable searchByTable =
         UserTable.builder().databaseId(TEST_TUPLE_1_0.getDatabaseId()).build();
     int sizeBeforeSoftDelete = userTablesService.getAllUserTables(searchByTable).size();
@@ -377,14 +367,6 @@ public class UserTablesServiceTest {
         Instant.ofEpochMilli(softDeletedTable.get().getDeletedAtMs())
             .plus(7, ChronoUnit.DAYS)
             .toEpochMilli());
-    Assertions.assertEquals(catalogProperties, softDeletedTable.get().getCatalogProperties());
-
-    UserTableDto restored =
-        userTablesService.restoreUserTable(
-            TEST_TUPLE_1_0.getDatabaseId(),
-            TEST_TUPLE_1_0.getTableId(),
-            softDeletedTable.get().getDeletedAtMs());
-    Assertions.assertEquals(catalogProperties, restored.getCatalogProperties());
   }
 
   @Test
@@ -392,23 +374,17 @@ public class UserTablesServiceTest {
     // testTuple1_0 is one of the table that is created from setup method.
     String modifiedLocation = TEST_TUPLE_1_0.get_userTableRow().getMetadataLocation() + "/new";
     String atVersion = TEST_TUPLE_1_0.get_userTableRow().getMetadataLocation();
-    String catalogProperties =
-        "{\"openhouse.tableType\":\"REPLICA_TABLE\",\"replace.enabled\":\"true\",\"padding\":\""
-            + "x".repeat(512)
-            + "\"}";
     UserTable updated_1_0 =
         UserTable.builder()
             .tableId(TEST_TUPLE_1_0.get_userTableRow().getTableId())
             .databaseId(TEST_TUPLE_1_0.get_userTableRow().getDatabaseId())
             .metadataLocation(modifiedLocation)
             .tableVersion(atVersion)
-            .catalogProperties(catalogProperties)
             .build();
     Pair<UserTableDto, Boolean> result = userTablesService.putUserTable(updated_1_0);
     assertThat(result.getSecond()).isTrue();
     assertThat(result.getFirst().getMetadataLocation()).isEqualTo(modifiedLocation);
     assertThat(result.getFirst().getTableVersion()).isEqualTo(modifiedLocation);
-    assertThat(result.getFirst().getCatalogProperties()).isEqualTo(catalogProperties);
   }
 
   @Test

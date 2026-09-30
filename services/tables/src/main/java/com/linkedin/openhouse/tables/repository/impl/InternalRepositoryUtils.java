@@ -6,7 +6,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.openhouse.cluster.storage.Storage;
 import com.linkedin.openhouse.common.api.spec.TableUri;
 import com.linkedin.openhouse.common.schema.IcebergSchemaHelper;
-import com.linkedin.openhouse.internal.catalog.CatalogTableProperties;
 import com.linkedin.openhouse.internal.catalog.fileio.FileIOManager;
 import com.linkedin.openhouse.internal.catalog.mapper.HouseTableSerdeUtils;
 import com.linkedin.openhouse.internal.catalog.model.HouseTable;
@@ -113,8 +112,7 @@ public final class InternalRepositoryUtils {
       TableTypeMapper tableTypeMapper) {
     /* Contains everything needed to populate dto */
     final Map<String, String> megaProps = table.properties();
-    Map<String, String> userVisibleProperties =
-        CatalogTableProperties.overlay(megaProps, houseTable);
+    Map<String, String> userVisibleProperties = new HashMap<>(megaProps);
     HouseTableSerdeUtils.HTS_FIELD_NAMES.forEach(
         fieldName -> userVisibleProperties.remove(getCanonicalFieldName(fieldName)));
     Storage storage = fileIOManager.getStorage(table.io());
@@ -146,8 +144,8 @@ public final class InternalRepositoryUtils {
             .creationTime(houseTable.getCreationTime())
             .timePartitioning(partitionSpecMapper.toTimePartitionSpec(table))
             .clustering(partitionSpecMapper.toClusteringSpec(table))
-            .policies(policiesMapper.toPoliciesObject(userVisibleProperties.get("policies")))
-            .tableType(tableTypeMapper.toTableType(userVisibleProperties))
+            .policies(policiesMapper.toPoliciesObject(megaProps.get("policies")))
+            .tableType(tableTypeMapper.toTableType(table))
             .jsonSnapshots(null)
             .tableProperties(userVisibleProperties)
             .sortOrder(SortOrderParser.toJson(table.sortOrder()))
